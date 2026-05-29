@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura de Venta - GM</title>
+    <style>
+        /* --- CONFIGURACIÓN GENERAL DE IMPRENTA --- */
+        :root {
+            --primary-blue: #0A2540; /* Azul oscuro comercial clásico */
+            --border-color: #0A2540;
+            --table-line: #0A2540;
+            --bg-light: #f4f6f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Courier New", Courier, monospace, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 10px;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* --- BOTONES DE ACCIÓN (OCULTOS EN IMPRESIÓN) --- */
+        .actions-panel {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            width: 210mm;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-print { background-color: var(--primary-blue); color: #fff; }
+        .btn-print:hover { background-color: #031424; }
+        .btn-row { background-color: #27ae60; color: #fff; }
+        .btn-row:hover { background-color: #1e8449; }
+
+        /* --- CONTENEDOR PRINCIPAL: TAMAÑO DE HOJA REAL (MEDIA CARTA / A5 EXTENDIDO) --- */
+        .invoice-container {
+            width: 210mm;
+            min-height: 165mm;
+            background-color: #ffffff;
+            border: 2px solid var(--border-color);
+            padding: 15mm 12mm;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* --- CONTROLES DE FORMULARIO TRANSPARENTES ESTILO LÍNEA --- */
+        input[type="text"], input[type="number"], textarea {
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-size: 13px;
+            color: #000;
+            width: 100%;
+            font-weight: bold;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            background-color: rgba(10, 37, 64, 0.04);
+        }
+        /* Ocultar flechas nativas de inputs numéricos */
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* --- SECCIÓN 1: ENCABEZADO Y LOGO --- */
+        .invoice-header {
+            display: grid;
+            grid-template-columns: 14% 50% 36%;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 12px;
+            margin-bottom: 15px;
+        }
+
+        /* Logo CSS Puro */
+        .logo-circle {
+            width: 65px;
+            height: 65px;
+            background-color: var(--primary-blue);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .logo-text {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            font-family: Arial, sans-serif;
+        }
+
+        .company-details {
+            padding-left: 15px;
+            color: var(--primary-blue);
+        }
+        .company-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .company-sub {
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        /* Bloque de Control de Facturación (Estilo Talonario) */
+        .invoice-number-box {
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            text-align: center;
+            padding: 8px;
+            background-color: #fff;
+        }
+        .inv-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: var(--primary-blue);
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+        .inv-number {
+            font-size: 18px;
+            font-weight: bold;
+            color: #c0392b; /* Rojo tradicional de folios mecánicos */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .inv-number span { margin-right: 4px; }
+        .inv-number input { color: #c0392b; font-size: 18px; width: 80px; }
+
+        /* --- SECCIÓN 2: DATOS DEL CLIENTE (MALLA RECTANGULAR) --- */
+        .customer-sec {
+            display: grid;
+            grid-template-columns: 65% 35%;
+            gap: 8px 15px;
+            margin-bottom: 20px;
+        }
+        .field-group {
+            display: flex;
+            align-items: flex-end;
+            font-size: 12px;
+            color: var(--primary-blue);
+            font-weight: bold;
+        }
+        .field-group label {
+            white-space: nowrap;
+            margin-right: 6px;
+            text-transform: uppercase;
+        }
+        .field-value {
+            flex-grow: 1;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: flex-end;
+            padding-bottom: 1px;
+        }
+
+        /* --- SECCIÓN 3: TABLA DE DETALLES PRINCIPAL --- */
+        .table-wrapper {
+            flex-grow: 1;
+            margin-bottom: 15px;
+        }
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 2px solid var(--border-color);
+        }
+        .invoice-table th {
+            background-color: rgba(10, 37, 64, 0.05);
+            color: var(--primary-blue);
+            font-size: 12px;
+            font-weight: bold;
+            padding: 8px 4px;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            text-align: center;
+        }
+        .invoice-table td {
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px dashed rgba(10, 37, 64, 0.2);
+            padding: 5px 4px;
+        }
+        .invoice-table tr:last-child td {
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Proporciones de Columnas */
+        .col-detail { width: 55%; }
+        .col-qty { width: 10%; text-align: center; }
+        .col-unit { width: 17%; text-align: right; }
+        .col-total { width: 18%; text-align: right; border-right: none !important; }
+
+        .col-qty input { text-align: center; }
+        .col-unit input, .col-total input { text-align: right; padding-right: 5px; }
+
+        /* --- SECCIÓN 4: ÁREA DE CIERRE, LEGAL Y TOTALES --- */
+        .invoice-footer-block {
+            display: grid;
+            grid-template-columns: 65% 35%;
+            border: 2px solid var(--border-color);
+            min-height: 32mm;
+        }
+
+        /* Bloque de Cláusula Legal */
+        .legal-box {
+            padding: 10px;
+            font-size: 9px;
+            color: #333;
+            line-height: 1.4;
+            border-right: 2px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .legal-text {
+            text-align: justify;
+            font-style: italic;
+        }
+        .signature-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .sig-line {
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 9px;
+            padding-top: 3px;
+            margin-top: 15px;
+            color: var(--primary-blue);
+            font-weight: bold;
+        }
+
+        /* Bloque de Liquidación de Totales */
+        .totals-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: stretch;
+        }
+        .total-row {
+            display: grid;
+            grid-template-columns: 45% 55%;
+            flex-grow: 1;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+        }
+        .total-row:last-child {
+            border-bottom: none;
+            background-color: rgba(10, 37, 64, 0.05);
+        }
+        .total-label {
+            font-size: 11px;
+            font-weight: bold;
+            color: var(--primary-blue);
+            padding-left: 8px;
+            text-transform: uppercase;
+        }
+        .total-val-wrapper {
+            display: flex;
+            align-items: center;
+            padding-right: 8px;
+            border-left: 1px solid var(--border-color);
+            height: 100%;
+        }
+        .total-val-wrapper span {
+            font-size: 12px;
+            font-weight: bold;
+            padding-left: 6px;
+            color: var(--primary-blue);
+        }
+        .total-val-wrapper input {
+            text-align: right;
+            font-size: 13px;
+        }
+
+        /* --- AJUSTES EXCLUSIVOS DE MEDIO DE IMPRESIÓN --- */
+        @media print {
+            body {
+                background: none;
+                padding: 0;
+                margin: 0;
+            }
+            .actions-panel {
+                display: none !important;
+            }
+            .invoice-container {
+                box-shadow: none;
+                border: 2px solid var(--border-color);
+                width: 210mm;
+                height: 165mm;
+                position: absolute;
+                top: 0;
+                left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="actions-panel">
+        <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir Factura</button>
+        <button class="btn btn-row" onclick="addNewRow()">➕ Agregar Fila de Detalle</button>
+    </div>
+
+    <main class="invoice-container">
+        
+        <header class="invoice-header">
+            <div class="logo-circle">
+                <span class="logo-text">GM</span>
+            </div>
+            <div class="company-details">
+                <div class="company-name"><input type="text" value="SOLUCIONES COMERCIALES GM S.A.S." style="font-size: 16px;"></div>
+                <div class="company-sub">
+                    <input type="text" value="NIT: 901.432.876-1 / Régimen Común" style="font-size: 11px;"><br>
+                    <input type="text" value="Dirección: Calle 42 # 15 - 23 Centro / Teléfono: (602) 285-4040" style="font-size: 11px;"><br>
+                    <input type="text" value="Palmira - Valle del Cauca, Colombia" style="font-size: 11px;">
+                </div>
+            </div>
+            <div class="invoice-number-box">
+                <div class="inv-title">FACTURA DE VENTA</div>
+                <div class="inv-number">
+                    <span>No.</span>
+                    <input type="text" value="0202" maxlength="8">
+                </div>
+            </div>
+        </header>
+
+        <section class="customer-sec">
+            <div class="field-group">
+                <label>Cliente:</label>
+                <div class="field-value"><input type="text" placeholder="Nombre completo o Razón Social"></div>
+            </div>
+            <div class="field-group">
+                <label>Fecha:</label>
+                <div class="field-value"><input type="text" value="28 de Mayo de 2026"></div>
+            </div>
+            <div class="field-group">
+                <label>Dirección:</label>
+                <div class="field-value"><input type="text" placeholder="Dirección de despacho"></div>
+            </div>
+            <div class="field-group">
+                <label>CC / NIT:</label>
+                <div class="field-value"><input type="text" placeholder="Documento de identidad"></div>
+            </div>
+            <div class="field-group">
+                <label>Teléfono:</label>
+                <div class="field-value"><input type="text" placeholder="Contacto telefónico"></div>
+            </div>
+            <div class="field-group">
+                <label>Ciudad:</label>
+                <div class="field-value"><input type="text" value="Palmira"></div>
+            </div>
+        </section>
+
+        <section class="table-wrapper">
+            <table class="invoice-table" id="itemsTable">
+                <thead>
+                    <tr>
+                        <th class="col-detail">DETALLE / DESCRIPCIÓN</th>
+                        <th class="col-qty">CANT.</th>
+                        <th class="col-unit">VALOR UNIT.</th>
+                        <th class="col-total">VALOR TOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="col-detail"><input type="text" placeholder="Escriba el concepto aquí..."></td>
+                        <td class="col-qty"><input type="number" value="0" oninput="calculateRow(this)"></td>
+                        <td class="col-unit"><input type="number" value="0" step="any" oninput="calculateRow(this)"></td>
+                        <td class="col-total"><input type="number" value="0" readonly></td>
+                    </tr>
+                    <tr>
+                        <td class="col-detail"><input type="text" placeholder="Escriba el concepto aquí..."></td>
+                        <td class="col-qty"><input type="number" value="0" oninput="calculateRow(this)"></td>
+                        <td class="col-unit"><input type="number" value="0" step="any" oninput="calculateRow(this)"></td>
+                        <td class="col-total"><input type="number" value="0" readonly></td>
+                    </tr>
+                    <tr>
+                        <td class="col-detail"><input type="text" placeholder="Escriba el concepto aquí..."></td>
+                        <td class="col-qty"><input type="number" value="0" oninput="calculateRow(this)"></td>
+                        <td class="col-unit"><input type="number" value="0" step="any" oninput="calculateRow(this)"></td>
+                        <td class="col-total"><input type="number" value="0" readonly></td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <footer class="invoice-footer-block">
+            <div class="legal-box">
+                <div class="legal-text">
+                    Esta factura de venta se asimila en todos sus efectos a una letra de cambio según el Artículo 774 del Código de Comercio. Autorización de Facturación de la DIAN No. 110000234567 de fecha 2026/01/15 del 0001 al 5000.
+                </div>
+                <div class="signature-area">
+                    <div class="sig-line">Aceptada Comprador</div>
+                    <div class="sig-line">Entregado Por</div>
+                </div>
+            </div>
+
+            <div class="totals-box">
+                <div class="total-row">
+                    <div class="total-label">Subtotal</div>
+                    <div class="total-val-wrapper">
+                        <span>$</span>
+                        <input type="number" id="invoiceSubtotal" value="0" readonly>
+                    </div>
+                </div>
+                <div class="total-row">
+                    <div class="total-label">Iva (19%)</div>
+                    <div class="total-val-wrapper">
+                        <span>$</span>
+                        <input type="number" id="invoiceIva" value="0" readonly>
+                    </div>
+                </div>
+                <div class="total-row">
+                    <div class="total-label">Total General</div>
+                    <div class="total-val-wrapper">
+                        <span>$</span>
+                        <input type="number" id="invoiceGrandTotal" value="0" readonly style="font-size: 15px;">
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+    </main>
+
+    <script>
+        // Añadir nuevas filas dinámicas manteniendo estructura CSS
+        function addNewRow() {
+            const tableBody = document.getElementById("itemsTable").getElementsByTagName("tbody")[0];
+            const newRow = tableBody.insertRow();
+
+            newRow.innerHTML = `
+                <td class="col-detail"><input type="text" placeholder="Escriba el concepto aquí..."></td>
+                <td class="col-qty"><input type="number" value="0" oninput="calculateRow(this)"></td>
+                <td class="col-unit"><input type="number" value="0" step="any" oninput="calculateRow(this)"></td>
+                <td class="col-total"><input type="number" value="0" readonly></td>
+            `;
+        }
+
+        // Ejecutar los cálculos de renglón y propagar al bloque general
+        function calculateRow(element) {
+            const row = element.closest('tr');
+            const qty = parseFloat(row.querySelector('.col-qty input').value) || 0;
+            const unitValue = parseFloat(row.querySelector('.col-unit input').value) || 0;
+            
+            const totalRowInput = row.querySelector('.col-total input');
+            totalRowInput.value = (qty * unitValue);
+
+            updateGlobalTotals();
+        }
+
+        // Recorrer las filas y consolidar importes e impuestos
+        function updateGlobalTotals() {
+            const rows = document.querySelectorAll("#itemsTable tbody tr");
+            let calculatedSubtotal = 0;
+
+            rows.forEach(row => {
+                const rowTotal = parseFloat(row.querySelector('.col-total input').value) || 0;
+                calculatedSubtotal += rowTotal;
+            });
+
+            const calculatedIva = calculatedSubtotal * 0.19;
+            const calculatedGrandTotal = calculatedSubtotal + calculatedIva;
+
+            document.getElementById("invoiceSubtotal").value = calculatedSubtotal;
+            document.getElementById("invoiceIva").value = calculatedIva;
+            document.getElementById("invoiceGrandTotal").value = calculatedGrandTotal;
+        }
+    </script>
+</body>
+</html>
